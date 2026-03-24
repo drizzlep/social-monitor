@@ -141,4 +141,4 @@ jobs:
 
       - name: Deploy to Vercel
         working-directory: frontend
-        run: npx vercel --prod --token ${{ secrets.VERCELTOKEN }} --force 2>&1 | tail -10
+        run: npx vercel --prod --token ${{ secrets.VERCELTOKEN }} --yes 2>&1 | tail -10
