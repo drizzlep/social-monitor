@@ -139,14 +139,6 @@ jobs:
           print("Collection complete!")
           PYEOF
 
-      - name: Commit and push data
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add -f frontend/public/data/
-          git diff --cached --quiet || git commit -m "chore: update collected data ${{ github.sha }}"
-          git push
-
       - name: Deploy to Vercel
-        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }} 2>&1 | tail -5
         working-directory: frontend
+        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }} --force 2>&1 | tail -10
