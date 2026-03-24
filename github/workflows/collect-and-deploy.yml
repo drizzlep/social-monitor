@@ -1,0 +1,85 @@
+name: Daily Data Collection & Deploy
+
+on:
+  schedule:
+    # Run daily at 08:00 Beijing time (00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  collect-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests --quiet
+
+      - name: Run data collection
+        env:
+          BAIDU_API_KEY: ${{ secrets.BAIDU_API_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, time, hashlib, requests
+          from datetime import datetime
+          from pathlib import Path
+
+          BAIDU_API_KEY = os.environ["BAIDU_API_KEY"]
+          WORKSPACE = Path("${{ github.workspace }}")
+          KEYWORDS_FILE = WORKSPACE / "scripts" / "keywords.json"
+          DATA_DIR = WORKSPACE / "frontend" / "public" / "data"
+          DATE_STR = datetime.now().strftime("%Y-%m-%d")
+          DATE_DIR = DATA_DIR / DATE_STR
+          DATE_DIR.mkdir(parents=True, exist_ok=True)
+
+          def md5_id(url):
+              return hashlib.md5(url.encode()).hexdigest()[:12]
+
+          def load_keywords():
+              with open(KEYWORDS_FILE) as f:
+                  return json.load(f)
+
+          def detect_brand(text, brands):
+              for b in brands:
+                  if b in text:
+                      return b
+              return None
+
+          def search_baidu(keyword, count=20):
+              if not BAIDU_API_KEY:
+                  return []
+              url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
+              headers = {
+                  "Authorization": f"Bearer {BAIDU_API_KEY}",
+                  "X-Appbuilder-From": "openclaw",
+                  "Content-Type": "application/json"
+              }
+              body = {
+                  "messages": [{"content": keyword, "role": "user"}],
+                  "search_source": "baidu_search_v2",
+                  "resource_type_filter": [{"type": "web", "top_k": count}],
+                  "search_filter": {}
+              }
+              try:
+                  resp = requests.post(url, json=body, headers=headers, timeout=30)
+                  resp.raise_for_status()
+                  results = resp.json()
+                  if "code" in results:
+                      return []
+                  items = []
+                  for ref in results.get("references", []):
+                      u = ref.get("url", "")
+                      if not u:
+                          continue
+                      platform = "web"
+                      if "mp.weixin.qq.com" in u:
+                          platform = "wechat"
+                      elif "xiaohongshu.com" in u or "xhslink.com" in u:
+                        
