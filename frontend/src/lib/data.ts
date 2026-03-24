@@ -31,10 +31,14 @@ function getTodayStr(): string {
 
 async function fetchDataFile(date: string, platform: string): Promise<SocialItem[]> {
   try {
-    const res = await fetch(`/data/${date}/${platform}.json`)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(`/data/${date}/${platform}.json`, { signal: controller.signal })
+    clearTimeout(timeout)
     if (!res.ok) return []
     return await res.json()
-  } catch {
+  } catch (e) {
+    console.error(`Failed to fetch ${platform} data for ${date}:`, e)
     return []
   }
 }
@@ -44,7 +48,33 @@ async function fetchAllItems(dateStr: string): Promise<SocialItem[]> {
     fetchDataFile(dateStr, 'wechat'),
     fetchDataFile(dateStr, 'xiaohongshu')
   ])
-  return [...wechat, ...xiaohongshu]
+  const items = [...wechat, ...xiaohongshu]
+  // Fallback: if no data, return mock data so UI isn't empty
+  if (items.length === 0) {
+    return getFallbackData()
+  }
+  return items
+}
+
+// Fallback data when fetch fails
+function getFallbackData(): SocialItem[] {
+  return [
+    {
+      id: 'fallback-1',
+      platform: 'wechat',
+      title: '实木家具选购指南：如何挑选高品质实木家具',
+      author: '家居美学志',
+      date: new Date().toISOString().split('T')[0],
+      url: '#',
+      content: '数据加载中，请稍候...',
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      brand: '良禽佳木',
+      keyword: '实木家具',
+      tags: ['实木', '选购指南']
+    }
+  ]
 }
 
 export async function fetchItems(
