@@ -7,3 +7,7 @@ url-to-markdown/
 *.json.bak
 data/
 SESSION-STATE.md
+
+# GitHub Actions workflows - add manually to GitHub web UI
+# (OAuth token lacks workflow scope)
+.github/
