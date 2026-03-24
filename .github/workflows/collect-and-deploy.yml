@@ -24,7 +24,7 @@ jobs:
 
       - name: Run data collection
         env:
-          BAIDU_API_KEY: ${{ secrets.BAIDU_API_KEY }}
+          BAIDU_API_KEY: ${{ secrets.BAIDUAPIKEY }}
         run: |
           python3 << 'PYEOF'
           import json, os, sys, time, hashlib, requests
