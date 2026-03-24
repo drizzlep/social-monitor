@@ -1,0 +1,152 @@
+name: Daily Data Collection & Deploy
+
+on:
+  schedule:
+    # Run daily at 08:00 Beijing time (00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  collect-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests python-dateutil --quiet
+
+      - name: Run data collection
+        env:
+          BAIDU_API_KEY: ${{ secrets.BAIDU_API_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, time, hashlib, requests
+          from datetime import datetime
+          from pathlib import Path
+
+          BAIDU_API_KEY = os.environ.get("BAIDU_API_KEY", "")
+          WORKSPACE = Path("${{ github.workspace }}")
+
+          KEYWORDS_FILE = WORKSPACE / "scripts" / "keywords.json"
+          DATA_DIR = WORKSPACE / "frontend" / "public" / "data"
+          DATE_STR = datetime.now().strftime("%Y-%m-%d")
+          DATE_DIR = DATA_DIR / DATE_STR
+          DATE_DIR.mkdir(parents=True, exist_ok=True)
+
+          def md5_id(url):
+              return hashlib.md5(url.encode()).hexdigest()[:12]
+
+          def load_keywords():
+              with open(KEYWORDS_FILE) as f:
+                  return json.load(f)
+
+          def detect_brand(text, brands):
+              for b in brands:
+                  if b in text:
+                      return b
+              return None
+
+          def search_baidu(keyword, count=20):
+              if not BAIDU_API_KEY:
+                  print(f"  SKIP: BAIDU_API_KEY not set")
+                  return []
+              url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
+              headers = {
+                  "Authorization": f"Bearer {BAIDU_API_KEY}",
+                  "X-Appbuilder-From": "openclaw",
+                  "Content-Type": "application/json"
+              }
+              body = {
+                  "messages": [{"content": keyword, "role": "user"}],
+                  "search_source": "baidu_search_v2",
+                  "resource_type_filter": [{"type": "web", "top_k": count}],
+                  "search_filter": {}
+              }
+              try:
+                  resp = requests.post(url, json=body, headers=headers, timeout=30)
+                  resp.raise_for_status()
+                  results = resp.json()
+                  if "code" in results:
+                      print(f"  API error: {results.get('message')}")
+                      return []
+                  items = []
+                  for ref in results.get("references", []):
+                      u = ref.get("url", "")
+                      if not u:
+                          continue
+                      platform = "web"
+                      if "mp.weixin.qq.com" in u:
+                          platform = "wechat"
+                      elif "xiaohongshu.com" in u or "xhslink.com" in u:
+                          platform = "xiaohongshu"
+                      date_str = ref.get("date", "")
+                      try:
+                          pub = datetime.strptime(date_str.split(" ")[0], "%Y-%m-%d").isoformat() if date_str else datetime.now().isoformat()
+                      except:
+                          pub = datetime.now().isoformat()
+                      brands = load_keywords().get("brand", [])
+                      brand = detect_brand(ref.get("title", "") + ref.get("content", ""), brands)
+                      items.append({
+                          "id": f"{platform}_{md5_id(u)}",
+                          "platform": platform,
+                          "title": ref.get("title", "Untitled"),
+                          "author": ref.get("website", ""),
+                          "date": pub[:10],
+                          "publishedAt": pub,
+                          "url": u,
+                          "content": (ref.get("content") or "")[:300],
+                          "likes": 0, "comments": 0, "collectors": 0,
+                          "keywords": [keyword],
+                          "brand": brand,
+                          "tags": [],
+                          "fetchedAt": datetime.now().isoformat()
+                      })
+                  return items
+              except Exception as e:
+                  print(f"  Error: {e}")
+                  return []
+
+          kw = load_keywords()
+          all_kw = kw.get("brand", []) + kw.get("industry", []) + kw.get("demand", [])
+          print(f"Collecting {len(all_kw)} keywords...")
+
+          for i, keyword in enumerate(all_kw):
+              print(f"[{i+1}/{len(all_kw)}] {keyword}...", end=" ")
+              items = search_baidu(keyword)
+              for item in items:
+                  plat = item["platform"]
+                  out = DATE_DIR / f"{plat}.json"
+                  existing = []
+                  if out.exists():
+                      with open(out) as f:
+                          existing = json.load(f)
+                  urls = {x["url"] for x in existing}
+                  if item["url"] not in urls:
+                      existing.append(item)
+                  with open(out, "w") as f:
+                      json.dump(existing, f, ensure_ascii=False, indent=2)
+              print(f"{len(items)} items")
+              if i < len(all_kw) - 1:
+                  time.sleep(1)
+
+          print("Collection complete!")
+          PYEOF
+
+      - name: Commit and push data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/data/
+          git diff --cached --quiet || git commit -m "chore: update collected data ${{ github.event.head_commit && github.event.head_commit.id || github.sha }}"
+          git push
+
+      - name: Deploy to Vercel
+        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }} 2>&1 | tail -5
+        working-directory: frontend
