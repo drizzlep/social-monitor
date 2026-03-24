@@ -184,7 +184,8 @@ def main():
     all_keywords = (
         keywords.get("brand", []) +
         keywords.get("industry", []) +
-        keywords.get("demand", [])
+        keywords.get("demand", []) +
+        keywords.get("social_style", [])
     )
     
     print(f"\n📊 Loaded {len(all_keywords)} keywords")
