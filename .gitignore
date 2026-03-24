@@ -5,9 +5,5 @@ out/
 .adal/
 url-to-markdown/
 *.json.bak
-
-# Raw collection data (large, don't track in git)
 data/
-
-# But track the public sample data
-!frontend/public/data/
+SESSION-STATE.md

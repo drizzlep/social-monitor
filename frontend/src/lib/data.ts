@@ -15,7 +15,7 @@ export interface SocialItem {
   [key: string]: unknown
 }
 
-export type Platform = 'all' | 'wechat' | 'xiaohongshu'
+export type Platform = 'all' | 'wechat' | 'xiaohongshu' | 'zhihu' | 'weibo' | 'douyin' | 'bilibili'
 export type DateRange = 7 | 30 | 90
 export type SortField = 'date' | 'likes' | 'comments'
 
@@ -139,7 +139,11 @@ export function platformLabel(platform: Platform): string {
   const map: Record<Platform, string> = {
     all: '全部',
     wechat: '微信公众号',
-    xiaohongshu: '小红书'
+    xiaohongshu: '小红书',
+    zhihu: '知乎',
+    weibo: '微博',
+    douyin: '抖音',
+    bilibili: 'B站'
   }
   return map[platform]
 }
@@ -147,5 +151,9 @@ export function platformLabel(platform: Platform): string {
 export function platformBadgeClass(platform: string): string {
   if (platform === 'wechat') return 'badge badge-wechat'
   if (platform === 'xiaohongshu') return 'badge badge-xiaohongshu'
+  if (platform === 'zhihu') return 'badge badge-zhihu'
+  if (platform === 'weibo') return 'badge badge-weibo'
+  if (platform === 'douyin') return 'badge badge-douyin'
+  if (platform === 'bilibili') return 'badge badge-bilibili'
   return 'badge badge-tag'
 }

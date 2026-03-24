@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { fetchItems, type SocialItem } from '@/lib/data'
+import { fetchItems, platformBadgeClass, type SocialItem } from '@/lib/data'
 
 function getDateStr(daysAgo: number): string {
   const d = new Date()
@@ -10,8 +10,18 @@ function getDateStr(daysAgo: number): string {
   return d.toISOString().split('T')[0]
 }
 
+const PLATFORM_COLORS: Record<string, { bg: string; label: string }> = {
+  wechat:      { bg: 'rgba(7,193,96,0.7)',   label: '微信公众号' },
+  xiaohongshu: { bg: 'rgba(254,44,85,0.7)',  label: '小红书' },
+  zhihu:       { bg: 'rgba(0,132,255,0.7)',  label: '知乎' },
+  weibo:       { bg: 'rgba(230,22,45,0.7)',  label: '微博' },
+  douyin:      { bg: 'rgba(0,0,0,0.5)',      label: '抖音' },
+  bilibili:    { bg: 'rgba(0,161,214,0.7)',  label: 'B站' },
+  web:         { bg: 'rgba(139,90,43,0.5)',  label: '其他' },
+}
+
 export default function TrendsPage() {
-  const [dailyData, setDailyData] = useState<Record<string, { wechat: number; xiaohongshu: number }>>({})
+  const [dailyData, setDailyData] = useState<Record<string, Record<string, number>>>({})
   const [brandData, setBrandData] = useState<Record<string, number>>({})
   const [topItems, setTopItems] = useState<SocialItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,33 +29,35 @@ export default function TrendsPage() {
   useEffect(() => {
     const load = async () => {
       const today = getDateStr(0)
+      const platforms = Object.keys(PLATFORM_COLORS)
 
-      // Fetch last 14 days
+      // Fetch last 14 days for all platforms
       const items: SocialItem[] = []
       for (let i = 0; i < 14; i++) {
         const date = getDateStr(i)
         try {
-          const [wechatRes, xhsRes] = await Promise.all([
-            fetch(`/data/${date}/wechat.json`).then(r => r.ok ? r.json() : []).catch(() => []),
-            fetch(`/data/${date}/xiaohongshu.json`).then(r => r.ok ? r.json() : []).catch(() => [])
-          ])
-          items.push(...wechatRes, ...xhsRes)
+          const results = await Promise.all(
+            platforms.map(p => fetch(`/data/${date}/${p}.json`).then(r => r.ok ? r.json() : []).catch(() => []))
+          )
+          for (const platformItems of results) {
+            items.push(...platformItems)
+          }
         } catch {
           // skip
         }
       }
 
-      // Daily counts
-      const daily: Record<string, { wechat: number; xiaohongshu: number }> = {}
+      // Daily counts per platform
+      const daily: Record<string, Record<string, number>> = {}
       for (let i = 0; i < 14; i++) {
         const date = getDateStr(i)
-        daily[date] = { wechat: 0, xiaohongshu: 0 }
+        daily[date] = {}
+        for (const p of platforms) daily[date][p] = 0
       }
       for (const item of items) {
         const date = item.date
-        if (daily[date]) {
-          if (item.platform === 'wechat') daily[date].wechat++
-          else daily[date].xiaohongshu++
+        if (daily[date] && daily[date][item.platform] !== undefined) {
+          daily[date][item.platform]++
         }
       }
       setDailyData(daily)
@@ -69,7 +81,7 @@ export default function TrendsPage() {
     load()
   }, [])
 
-  const maxDaily = Math.max(...Object.values(dailyData).flatMap(d => [d.wechat, d.xiaohongshu, 1]), 1)
+  const maxDaily = Math.max(...Object.values(dailyData).flatMap(d => Object.values(d).concat([1])), 1)
 
   return (
     <div>
@@ -96,30 +108,35 @@ export default function TrendsPage() {
               <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '20px', color: 'var(--color-text)' }}>每日内容发布量</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {Object.entries(dailyData).reverse().map(([date, counts]) => {
-                  const wechatW = (counts.wechat / maxDaily) * 100
-                  const xhsW = (counts.xiaohongshu / maxDaily) * 100
-                  const total = counts.wechat + counts.xiaohongshu
+                  const total = Object.values(counts).reduce((a, b) => a + b, 0)
+                  const activePlatforms = Object.entries(counts).filter(([, v]) => v > 0)
                   return (
                     <div key={date} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', width: '80px', flexShrink: 0 }}>{date}</span>
-                      <div style={{ flex: 1, display: 'flex', gap: '4px', alignItems: 'center' }}>
-                        <div style={{ width: `${wechatW}%`, height: '20px', background: 'rgba(7,193,96,0.7)', borderRadius: '4px', minWidth: total === 0 ? '0' : '2px', transition: 'width 0.3s' }} title={`微信公众号 ${counts.wechat}`} />
-                        <div style={{ width: `${xhsW}%`, height: '20px', background: 'rgba(254,44,85,0.7)', borderRadius: '4px', minWidth: '2px', transition: 'width 0.3s' }} title={`小红书 ${counts.xiaohongshu}`} />
+                      <div style={{ flex: 1, display: 'flex', gap: '2px', alignItems: 'center' }}>
+                        {activePlatforms.length === 0 ? (
+                          <div style={{ height: '20px', width: '4px', background: '#eee', borderRadius: '2px' }} />
+                        ) : (
+                          activePlatforms.map(([p, v]) => {
+                            const w = total > 0 ? (v / total) * 100 : 0
+                            return (
+                              <div key={p} style={{ width: `${w}%`, height: '20px', background: PLATFORM_COLORS[p]?.bg || '#ccc', borderRadius: '3px', minWidth: '2px' }} title={`${PLATFORM_COLORS[p]?.label || p} ${v}`} />
+                            )
+                          })
+                        )}
                       </div>
-                      <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', width: '50px', textAlign: 'right' }}>{total}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', width: '40px', textAlign: 'right' }}>{total}</span>
                     </div>
                   )
                 })}
               </div>
-              <div style={{ display: 'flex', gap: '20px', marginTop: '16px', fontSize: '12px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '2px', background: 'rgba(7,193,96,0.7)' }} />
-                  微信公众号
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '2px', background: 'rgba(254,44,85,0.7)' }} />
-                  小红书
-                </span>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '16px', fontSize: '12px', flexWrap: 'wrap' }}>
+                {Object.entries(PLATFORM_COLORS).map(([p, { bg, label }]) => (
+                  <span key={p} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '2px', background: bg }} />
+                    {label}
+                  </span>
+                ))}
               </div>
             </div>
 

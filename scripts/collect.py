@@ -109,12 +109,21 @@ def parse_result(ref: dict, keyword: str) -> dict:
     if not url:
         return None
     
-    # 判断平台
+    # 判断平台（基于 URL 域名）
     platform = "web"
     if "mp.weixin.qq.com" in url:
         platform = "wechat"
     elif "xiaohongshu.com" in url or "xhslink.com" in url:
         platform = "xiaohongshu"
+    elif "zhihu.com" in url:
+        platform = "zhihu"
+    elif "weibo.com" in url:
+        platform = "weibo"
+    elif "douyin.com" in url:
+        platform = "douyin"
+    elif "bilibili.com" in url:
+        platform = "bilibili"
+
     
     # 提取日期
     date_str = ref.get("date", "")
