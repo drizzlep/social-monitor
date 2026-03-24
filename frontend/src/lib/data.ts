@@ -44,16 +44,34 @@ async function fetchDataFile(date: string, platform: string): Promise<SocialItem
 }
 
 async function fetchAllItems(dateStr: string): Promise<SocialItem[]> {
+  // Primary: try latest.json (static, works in SSR)
+  const latest = await fetchLatestData()
+  if (latest.length > 0) return latest
+  
+  // Fallback: try date-specific files
   const [wechat, xiaohongshu] = await Promise.all([
     fetchDataFile(dateStr, 'wechat'),
     fetchDataFile(dateStr, 'xiaohongshu')
   ])
   const items = [...wechat, ...xiaohongshu]
-  // Fallback: if no data, return mock data so UI isn't empty
   if (items.length === 0) {
     return getFallbackData()
   }
   return items
+}
+
+async function fetchLatestData(): Promise<SocialItem[]> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(`/data/latest.json`, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) return []
+    const data: SocialItem[] = await res.json()
+    return data
+  } catch {
+    return []
+  }
 }
 
 // Fallback data when fetch fails

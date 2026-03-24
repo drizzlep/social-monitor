@@ -5,9 +5,10 @@ out/
 .adal/
 url-to-markdown/
 *.json.bak
-data/
+data/                       # raw collection output
 SESSION-STATE.md
-
-# GitHub Actions workflows - add manually to GitHub web UI
-# (OAuth token lacks workflow scope)
 .github/
+
+# frontend public data - track latest.json sample
+!frontend/public/data/latest.json
+!frontend/public/data/2026-03-24/
