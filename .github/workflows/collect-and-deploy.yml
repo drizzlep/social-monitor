@@ -114,7 +114,7 @@ jobs:
                   return []
 
           kw = load_keywords()
-          all_kw = kw.get("brand", []) + kw.get("industry", []) + kw.get("demand", [])
+          all_kw = kw.get("brand", []) + kw.get("industry", []) + kw.get("demand", []) + kw.get("social_style", [])
           print(f"Collecting {len(all_kw)} keywords...")
 
           for i, keyword in enumerate(all_kw):
@@ -141,10 +141,10 @@ jobs:
 
       - name: Commit and push data
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add frontend/public/data/
-          git diff --cached --quiet || git commit -m "chore: update collected data ${{ github.event.head_commit && github.event.head_commit.id || github.sha }}"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -f frontend/public/data/
+          git diff --cached --quiet || git commit -m "chore: update collected data ${{ github.sha }}"
           git push
 
       - name: Deploy to Vercel
