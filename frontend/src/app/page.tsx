@@ -88,7 +88,7 @@ export default function DashboardPage() {
 
         {/* Platform Tabs */}
         <div className="tabs">
-          {(['all', 'wechat', 'xiaohongshu', 'zhihu', 'weibo', 'douyin', 'bilibili'] as Platform[]).map((p) => (
+          {(['all', 'wechat', 'xiaohongshu'] as Platform[]).map((p) => (
             <button
               key={p}
               className={`tab ${platform === p ? 'active' : ''}`}
